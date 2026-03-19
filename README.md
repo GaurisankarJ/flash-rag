@@ -15,11 +15,11 @@ It includes:
 
 ## 1) Environment setup
 
-Create and activate a dedicated conda env named `flash_rag`:
+Create and activate a dedicated conda env named `flash_rag311`:
 
 ```bash
-conda create -n flash_rag python=3.10 -y
-conda activate flash_rag
+conda create -n flash_rag311 python=3.11 -y
+conda activate flash_rag311
 ```
 
 ### Install PyTorch
@@ -57,15 +57,30 @@ pip install -r requirements.txt
 From this folder:
 
 ```bash
-bash run_retriever_serving.sh 3001 1
+bash run_retriever_serving.sh 3001 1 retriever_config_mini.yaml
 ```
 
 Arguments:
 
 - first arg: port (default `3001`)
 - second arg: number of retriever instances (default `1`)
+- third arg: config file path (default `retriever_config.yaml`)
 
-## 4) Test the server
+Examples:
+
+Mini wiki:
+
+```bash
+bash run_retriever_serving.sh 3001 1 retriever_config_mini.yaml
+```
+
+Full wiki:
+
+```bash
+bash run_retriever_serving.sh 3001 1 retriever_config.yaml
+```
+
+## 4) Test the server manually
 
 Health:
 
@@ -81,7 +96,63 @@ curl -sS -X POST "http://127.0.0.1:3001/search" \
   -d '{"query":"What is the capital of France?","top_n":3,"return_score":false}'
 ```
 
-## 5) Build index for mini or full corpus (optional)
+## 5) Run API smoke tests (automated)
+
+An automated API smoke-test suite is provided at:
+
+- `./tests/retriever_api_smoke_test.py`
+
+Helper runner:
+
+- `./run_retriever_api_tests.sh`
+
+Run against a local service:
+
+```bash
+bash run_retriever_api_tests.sh "http://127.0.0.1:3001"
+```
+
+The smoke test validates:
+
+- `/health` status and retriever counts
+- `/search` happy-path response shape
+- `/batch_search` happy-path response shape
+- `/search` empty-query validation (expects HTTP 400)
+
+## 6) Run retriever + tests with Slurm (sbatch)
+
+Use the provided Slurm batch file:
+
+- `./run_retriever_service_and_tests.sbatch`
+
+It does all of the following in one job:
+
+1. Activates conda env (default `flash_rag311`)
+2. Starts retriever service (`run_retriever_serving.sh`)
+3. Waits for `/health` readiness
+4. Runs the API smoke tests
+5. Shuts down the service and exits with job status
+
+Submit:
+
+```bash
+sbatch run_retriever_service_and_tests.sbatch
+```
+
+Optional overrides at submit time:
+
+```bash
+sbatch --export=ALL,CONDA_ENV=flash_rag311,PORT=3001,NUM_RETRIEVER=1 run_retriever_service_and_tests.sbatch
+```
+
+Check output logs:
+
+```bash
+tail -f slurm-<job_id>.out
+tail -f slurm-<job_id>.err
+```
+
+## 7) Build index for mini or full corpus (optional)
 
 If you need to rebuild indexes:
 

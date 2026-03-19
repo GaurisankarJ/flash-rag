@@ -17,6 +17,9 @@ import requests
 from functools import wraps
 import time
 
+def _faiss_gpu_supported():
+    return all(hasattr(faiss, attr) for attr in ("GpuMultipleClonerOptions", "index_cpu_to_all_gpus"))
+
 def cache_manager(func):
     """
     Decorator used for retrieving document cache.
@@ -352,6 +355,9 @@ class DenseRetriever(BaseTextRetriever):
             raise Warning(f"Index file {self.index_path} does not exist!")
         self.index = faiss.read_index(self.index_path)
         if self.use_faiss_gpu:
+            if not _faiss_gpu_supported():
+                warnings.warn("FAISS GPU requested but GPU bindings are unavailable. Falling back to CPU index.")
+                return
             co = faiss.GpuMultipleClonerOptions()
             co.useFloat16 = True
             co.shard = True
@@ -479,6 +485,9 @@ class MultiModalRetriever(BaseRetriever):
             if idx_path is not None:
                 self.index_dict[modal] = faiss.read_index(idx_path)
             if config["faiss_gpu"]:
+                if not _faiss_gpu_supported():
+                    warnings.warn("FAISS GPU requested but GPU bindings are unavailable. Falling back to CPU index.")
+                    continue
                 co = faiss.GpuMultipleClonerOptions()
                 co.useFloat16 = True
                 co.shard = True

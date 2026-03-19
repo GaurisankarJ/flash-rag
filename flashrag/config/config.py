@@ -101,22 +101,37 @@ class Config:
         self.final_config["split"] = split
 
     def _init_device(self):
-        gpu_id = self.final_config["gpu_id"]
+        gpu_id = self.final_config.get("gpu_id")
         if gpu_id is not None:
             os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+
         try:
-            # import pynvml 
-            # pynvml.nvmlInit()
-            # gpu_num = pynvml.nvmlDeviceGetCount()
             import torch
-            gpu_num = torch.cuda.device_count()
-        except:
-            gpu_num = 0
-        self.final_config['gpu_num'] = gpu_num
-        if gpu_num > 0:
-            self.final_config["device"] = "cuda"
-        else:
-            self.final_config['device'] = 'cpu'
+            import faiss
+
+            cuda_available = torch.cuda.is_available()
+            gpu_num = torch.cuda.device_count() if cuda_available else 0
+            mps_available = hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+
+            self.final_config["gpu_num"] = gpu_num
+            if gpu_num > 0:
+                self.final_config["device"] = "cuda"
+            elif mps_available:
+                # On Apple Silicon, prefer GPU via MPS when CUDA is unavailable.
+                self.final_config["device"] = "mps"
+            else:
+                self.final_config["device"] = "cpu"
+
+            # Auto-enable FAISS GPU if CUDA is available and FAISS has GPU bindings.
+            # This ensures the retriever uses GPU without requiring manual config edits.
+            faiss_has_gpu = all(
+                hasattr(faiss, attr) for attr in ("GpuMultipleClonerOptions", "index_cpu_to_all_gpus")
+            )
+            self.final_config["faiss_gpu"] = bool(gpu_num > 0 and faiss_has_gpu)
+        except Exception:
+            self.final_config["gpu_num"] = 0
+            self.final_config["device"] = "cpu"
+            self.final_config["faiss_gpu"] = False
 
     def _set_additional_key(self):
         def set_pooling_method(method, model2pooling):
