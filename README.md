@@ -15,6 +15,8 @@ It includes:
 
 ## 1) Environment setup
 
+### CPU / local setup
+
 Create and activate a dedicated conda env named `flash_rag311`:
 
 ```bash
@@ -22,7 +24,7 @@ conda create -n flash_rag311 python=3.11 -y
 conda activate flash_rag311
 ```
 
-### Install PyTorch
+Install PyTorch:
 
 For macOS (Apple Silicon / CPU/MPS):
 
@@ -30,21 +32,30 @@ For macOS (Apple Silicon / CPU/MPS):
 pip install torch torchvision torchaudio
 ```
 
-For Linux with CUDA 12.4 (from original project setup):
-
-```bash
-pip install torch --index-url https://download.pytorch.org/whl/cu124
-```
-
-### Install FlashRAG serving dependencies
-
-From this folder:
+Install FlashRAG serving dependencies from this folder:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### Optional: enable FAISS GPU (Linux + NVIDIA)
+### GPU setup on ALICE
+
+
+```bash
+module purge
+module load ALICE/default
+module load Miniconda3/24.7.1-0
+source "$(conda info --base)/etc/profile.d/conda.sh"
+
+conda remove -n flash_rag311 --all -y  # optional but recommended if env is broken
+conda create -n flash_rag311 -c conda-forge python=3.11 numpy=1.26 pandas pyarrow datasets pip -y
+conda activate flash_rag311
+
+cd /omega/flash-rag
+pip install -r requirements.txt
+```
+
+### Enable FAISS GPU (Linux + NVIDIA)
 
 `requirements.txt` installs `faiss-cpu` by default. If you want FAISS index search on GPU, install GPU FAISS in the conda environment:
 
@@ -53,6 +64,18 @@ conda install -c pytorch -c nvidia faiss-gpu=1.8.0
 ```
 
 Then set `faiss_gpu: True` in your retriever config (`retriever_config.yaml` or `retriever_config_mini.yaml`).
+
+Quick verification:
+
+```bash
+python - <<'PY'
+import numpy, pandas, datasets, torch
+print("numpy", numpy.__version__)
+print("pandas", pandas.__version__)
+print("datasets", datasets.__version__)
+print("cuda", torch.cuda.is_available())
+PY
+```
 
 ## 2) Default serving config
 
