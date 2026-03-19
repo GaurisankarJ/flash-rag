@@ -1,4 +1,4 @@
-# FlashRAG Standalone Serving HI
+# FlashRAG Standalone Serving
  
 This folder is a self-contained setup for FlashRAG retriever serving.
 
