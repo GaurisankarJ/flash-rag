@@ -44,6 +44,16 @@ From this folder:
 pip install -r requirements.txt
 ```
 
+### Optional: enable FAISS GPU (Linux + NVIDIA)
+
+`requirements.txt` installs `faiss-cpu` by default. If you want FAISS index search on GPU, install GPU FAISS in the conda environment:
+
+```bash
+conda install -c pytorch -c nvidia faiss-gpu=1.8.0
+```
+
+Then set `faiss_gpu: True` in your retriever config (`retriever_config.yaml` or `retriever_config_mini.yaml`).
+
 ## 2) Default serving config
 
 `retriever_config.yaml` is preconfigured for mini serving:
@@ -128,10 +138,12 @@ Use the provided Slurm batch file:
 It does all of the following in one job:
 
 1. Activates conda env (default `flash_rag311`)
-2. Starts retriever service (`run_retriever_serving.sh`)
-3. Waits for `/health` readiness
-4. Runs the API smoke tests
-5. Shuts down the service and exits with job status
+2. Verifies CUDA GPU is available (default `REQUIRE_GPU=1`)
+3. Creates a runtime config and forces `faiss_gpu: True`
+4. Starts retriever service (`run_retriever_serving.sh`)
+5. Waits for `/health` readiness
+6. Runs the API smoke tests
+7. Shuts down the service and exits with job status
 
 Submit:
 
@@ -143,6 +155,13 @@ Optional overrides at submit time:
 
 ```bash
 sbatch --export=ALL,CONDA_ENV=flash_rag311,PORT=3001,NUM_RETRIEVER=1 run_retriever_service_and_tests.sbatch
+```
+
+GPU-related overrides:
+
+```bash
+# Select a specific GPU and keep strict GPU requirement (default behavior)
+sbatch --export=ALL,CONDA_ENV=flash_rag311,PORT=3001,NUM_RETRIEVER=1,RETRIEVER_CONFIG=retriever_config_mini.yaml,GPU_ID=0,REQUIRE_GPU=1 run_retriever_service_and_tests.sbatch
 ```
 
 Check output logs:

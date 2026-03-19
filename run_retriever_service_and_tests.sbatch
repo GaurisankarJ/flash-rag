@@ -13,6 +13,8 @@ PORT="${PORT:-3001}"
 NUM_RETRIEVER="${NUM_RETRIEVER:-1}"
 CONDA_ENV="${CONDA_ENV:-flash_rag311}"
 RETRIEVER_CONFIG="${RETRIEVER_CONFIG:-retriever_config.yaml}"
+REQUIRE_GPU="${REQUIRE_GPU:-1}"
+GPU_ID="${GPU_ID:-0}"
 
 PROJECT_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
 cd "${PROJECT_DIR}"
@@ -46,8 +48,39 @@ trap finalize EXIT
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate "${CONDA_ENV}"
 
+RUNTIME_CONFIG="${LOG_DIR}/retriever_config_runtime_${JOB_ID}.yaml"
+cp "${RETRIEVER_CONFIG}" "${RUNTIME_CONFIG}"
+
+if [[ "${REQUIRE_GPU}" == "1" ]]; then
+  echo "[INFO] Verifying CUDA GPU availability"
+  python - <<'PY'
+import torch
+if not torch.cuda.is_available() or torch.cuda.device_count() < 1:
+    raise SystemExit("No CUDA GPU available, but REQUIRE_GPU=1")
+print(f"[INFO] CUDA GPUs detected: {torch.cuda.device_count()}")
+PY
+
+  echo "[INFO] Forcing runtime config to GPU mode"
+  python - <<'PY' "${RUNTIME_CONFIG}" "${GPU_ID}"
+import sys
+import yaml
+
+config_path = sys.argv[1]
+gpu_id = sys.argv[2]
+
+with open(config_path, "r", encoding="utf-8") as f:
+    cfg = yaml.safe_load(f)
+
+cfg["gpu_id"] = str(gpu_id)
+cfg["faiss_gpu"] = True
+
+with open(config_path, "w", encoding="utf-8") as f:
+    yaml.safe_dump(cfg, f, sort_keys=False)
+PY
+fi
+
 echo "[INFO] Starting retriever service on port ${PORT}"
-bash run_retriever_serving.sh "${PORT}" "${NUM_RETRIEVER}" "${RETRIEVER_CONFIG}" &
+bash run_retriever_serving.sh "${PORT}" "${NUM_RETRIEVER}" "${RUNTIME_CONFIG}" &
 SERVER_PID=$!
 
 echo "[INFO] Waiting for service health check"
